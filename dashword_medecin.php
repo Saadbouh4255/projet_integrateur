@@ -2,10 +2,10 @@
 session_start();
 if(isset($_POST['logout'])){
       
-      header('location: connection.php');
-      
-      exit;
+      header('location: conexion.php');
       session_destroy();
+      exit;
+      
     }
     if(isset($_POST['mes_patiant'])){
       header('location: mes_patiant.php');

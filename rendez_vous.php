@@ -10,7 +10,7 @@ if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['patient', 'assis
 // Connexion à la base de données
 $conn = new mysqli("localhost", "root", "", "gestion_cabinet_medical");
 $conn->set_charset("utf8");
-//ahmed
+
 // Initialisation des variables
 $message = '';
 $msg_type = '';
