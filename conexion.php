@@ -67,7 +67,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             // Redirection selon le rôle
             $redirects = [
                 'patient' => 'patient.php',
-                'medecin' => 'dashboard_medecin.php',
+                'medecin' => 'dashword_medecin.php',
                 'admin' => 'admin.php',
                 'assistant' => 'accueil_assistant.php'
             ];

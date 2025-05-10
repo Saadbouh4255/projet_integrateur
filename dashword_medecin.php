@@ -3,12 +3,15 @@ session_start();
 if(isset($_POST['logout'])){
       
       header('location: conexion.php');
-      session_destroy();
       exit;
+      session_destroy();
+      
+      
       
     }
     if(isset($_POST['mes_patiant'])){
-      header('location: mes_patiant.php');
+      $id=$_SESSION['id_medecin'];
+      header('location: mas_patiant.php');
       exit;
     }
     if(isset($_POST['Mes_Rendez_vous'])){
@@ -21,7 +24,7 @@ if(isset($_POST['logout'])){
     }
     $nbpatiants=$nbrandezvous=$nbanalyse="";
     #$id_patiant=$_SESSION['id_patiant'];
-    #$nbpatiants=query($sql="SELECT * FROM patiant WHERE id_patant=$id_patiant")
+    #$nbpatiants=query($sql="SELECT count(*) FROM patiant WHERE id_patant=$id_patiant")
 
     ?>
 <!DOCTYPE html>
