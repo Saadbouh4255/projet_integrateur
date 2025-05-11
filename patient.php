@@ -15,7 +15,7 @@ $conn->set_charset("utf8");
 $id_p = intval($_SESSION['id_patient']);
 $stmt = $conn->prepare("
     SELECT nom, prenom, email, date_naissance, sexe, telephone, adresse 
-    FROM Patient 
+    FROM patient 
     WHERE id_patient = ?
 ");
 $stmt->bind_param("i", $id_p);
@@ -25,11 +25,13 @@ $stmt->close();
 
 // Récupération des rendez-vous à venir
 $rdv_stmt = $conn->prepare("
-    SELECT r.date_heure, m.nom, m.prenom, r.motif 
-    FROM RendezVous r
-    JOIN Medecin m ON r.id_medecin = m.id_medecin
-    WHERE r.id_patient = ? AND r.statut = 'prévu' AND r.date_heure > NOW()
-    ORDER BY r.date_heure ASC
+    SELECT r.date_rdv, r.heure, m.nom, m.prenom, r.motif 
+    FROM rendezvous r
+    JOIN medecin m ON r.id_traitement IN (
+        SELECT id_traitement FROM traitement WHERE id_medecin = m.id_medecin AND id_patient = ?
+    )
+    WHERE r.date_rdv >= CURDATE()
+    ORDER BY r.date_rdv ASC, r.heure ASC
     LIMIT 3
 ");
 $rdv_stmt->bind_param("i", $id_p);
@@ -58,6 +60,28 @@ $conn->close();
       --gray: #f5f5f5;
       --border: #e0e0e0;
     }
+.btn-logout {
+    background: #f44336;
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background 0.3s;
+    text-decoration: none;
+}
+
+.btn-logout:hover {
+    background: #d32f2f;
+}
+
+.btn-logout i {
+    font-size: 16px;
+}
     
     * {
       box-sizing: border-box;
@@ -311,7 +335,7 @@ $conn->close();
           <?php else: ?>
             <?php foreach($rendezvous as $rdv): ?>
               <div class="rdv-item">
-                <div class="rdv-date"><?= date('d/m/Y H:i', strtotime($rdv['date_heure'])) ?></div>
+              <div class="rdv-date"><?= date('d/m/Y', strtotime($rdv['date_rdv'])).' à '.substr($rdv['heure'], 0, 5) ?></div>
                 <div class="rdv-doctor">Dr. <?= htmlspecialchars($rdv['prenom'].' '.$rdv['nom']) ?></div>
                 <div class="rdv-motif"><?= htmlspecialchars($rdv['motif']) ?></div>
               </div>

@@ -1,4 +1,4 @@
-dossiers:<?php
+<?php
 session_start();
 if (!isset($_SESSION['id_patient'])) {
     header("Location: connection.php");
@@ -6,34 +6,45 @@ if (!isset($_SESSION['id_patient'])) {
 }
 
 $conn = new mysqli("localhost", "root", "", "gestion_cabinet_medical");
+if ($conn->connect_error) {
+    die("Échec de la connexion : " . $conn->connect_error);
+}
 $conn->set_charset("utf8");
 
 $id_p = $_SESSION['id_patient'];
-$patient = $conn->query("
-    SELECT p.*, u.date_creation 
-    FROM Patient p
-    JOIN Utilisateur u ON p.email = u.email
-    WHERE p.id_patient = $id_p
-")->fetch_assoc();
 
-$stmt = $conn->prepare("
-    SELECT 
-        r.date_heure AS date_consultation,
-        CONCAT(m.prenom, ' ', m.nom) AS medecin,
-        r.motif AS diagnostic,
-        NULL AS traitement
-    FROM rendezvous r
-    JOIN medecin m ON r.id_medecin = m.id_medecin
-    WHERE r.id_patient = ? 
-    AND r.date_heure < NOW()
-    ORDER BY r.date_heure DESC
+// REQUÊTE SÉCURISÉE (version corrigée)
+$stmt_patient = $conn->prepare("
+    SELECT p.*
+    FROM patient p
+    WHERE p.id_patient = ?
 ");
-$stmt->bind_param("i", $id_patient);
-$stmt->execute();
-$historique = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
+$stmt_patient->bind_param("i", $id_p);
+$stmt_patient->execute();
+$patient = $stmt_patient->get_result()->fetch_assoc();
+$stmt_patient->close();
 
+// Requête pour l'historique des consultations
+$stmt_historique = $conn->prepare("
+    SELECT 
+        r.date_rdv AS date_consultation,
+        r.heure AS heure_consultation,
+        CONCAT(m.prenom, ' ', m.nom) AS medecin,
+        r.motif,
+        t.diagnostic
+    FROM traitement t
+    JOIN rendezvous r ON t.id_traitement = r.id_traitement
+    JOIN medecin m ON t.id_medecin = m.id_medecin
+    WHERE t.id_patient = ?
+    AND (r.date_rdv < CURDATE() OR (r.date_rdv = CURDATE() AND r.heure < CURTIME()))
+    ORDER BY r.date_rdv DESC, r.heure DESC
+");
+$stmt_historique->bind_param("i", $id_p);
+$stmt_historique->execute();
+$historique = $stmt_historique->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt_historique->close();
 ?>
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -51,6 +62,29 @@ $stmt->close();
       --white: #ffffff;
       --gray: #f5f5f5;
       --border: #e0e0e0;
+    }
+    
+    .btn-logout {
+        background: #f44336;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        transition: background 0.3s;
+        text-decoration: none;
+    }
+
+    .btn-logout:hover {
+        background: #d32f2f;
+    }
+
+    .btn-logout i {
+        font-size: 16px;
     }
     
     * {
@@ -220,12 +254,19 @@ $stmt->close();
       <h1 class="header-title">Dossier Médical</h1>
       <a href="patient.php" class="btn-back">← Retour</a>
     </div>
+    <div style="position: absolute; top: 20px; right: 20px;">
+      <a href="deconnexion.php" class="btn-logout">
+          <i>🚪</i> Déconnexion
+      </a>
+    </div>
     
     <!-- Informations patient -->
     <div class="patient-info">
       <div class="patient-header">
-        <h2 class="patient-name"><?= htmlspecialchars($patient['nom'].' '.$patient['prenom']) ?></h2>
-        <div class="patient-meta">Membre depuis <?= date('d/m/Y', strtotime($patient['date_creation'])) ?></div>
+          <h2 class="patient-name"><?= htmlspecialchars($patient['nom'].' '.$patient['prenom']) ?></h2>
+          <div class="patient-meta">
+              Membre depuis <?= date('d/m/Y', strtotime($patient['date_naissance'])) ?>
+           </div>
       </div>
       
       <div class="info-grid">
@@ -276,14 +317,16 @@ $stmt->close();
       <?php else: ?>
         <?php foreach($historique as $consult): ?>
           <div class="history-item">
-            <div class="history-date"><?= date('d/m/Y', strtotime($consult['date_consultation'])) ?></div>
+            <div class="history-date"><?= date('d/m/Y', strtotime($consult['date_consultation'])) ?> à <?= substr($consult['heure_consultation'], 0, 5) ?></div>
             <div class="history-doctor">Consultation avec Dr. <?= htmlspecialchars($consult['medecin']) ?></div>
             <div class="history-diagnostic">
+              <strong>Motif :</strong> <?= htmlspecialchars($consult['motif']) ?>
+            </div>
+            <?php if(!empty($consult['diagnostic'])): ?>
+            <div class="history-treatment">
               <strong>Diagnostic :</strong> <?= htmlspecialchars($consult['diagnostic']) ?>
             </div>
-            <div class="history-treatment">
-              <strong>Traitement :</strong> <?= htmlspecialchars($consult['traitement']) ?>
-            </div>
+            <?php endif; ?>
           </div>
         <?php endforeach; ?>
       <?php endif; ?>
