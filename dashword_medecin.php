@@ -1,53 +1,57 @@
 <?php
-$servername="localhost";
-    $username="root";
-    $password="";
-    $dbname="gestion_cabinet_medical";
-    $conn=mysqli_connect($servername,$username,$password,$dbname);
 session_start();
-if(isset($_POST['logout'])){
-      session_unset();
-      session_destroy();
-      header('location: conexion.php');
-      exit;
-      
 
-      
-      
-      
-    }
-    if(isset($_POST['mes_patiant'])){
-      
-      header('location: mas_patiant.php');
-      exit;
-    }
-    if(isset($_POST['Mes_Rendez_vous'])){
-      header('location: Mes_Rendez_vous.php');
-      exit;
-    }
-    if(isset($_POST['Résultats_d_Analyses'])){
-      header('location: Résultats_d_Analyses.php');
-      exit;
-    }
-    $id_medecin="";
-    $nbpatiants=$nbrandezvous=$nbanalyse=0;
-    $id_medecin=$_SESSION['id_utilisateur'];
-    
-    $result=$conn->query($sql="SELECT count(*) as nb
-                            FROM Patient
-                            JOIN Traitement ON Patient.id_patient = Traitement.id_patient
-                            WHERE Traitement.id_medecin =$id_medecin ;");
-    $row=$result->fetch_row();
-    $nbpatiants=$row[0];
+if (!isset($_SESSION['id_utilisateur'])) {
+    header('Location: conexion.php');
+    exit;
+}
+
+$servername="localhost";
+$username="root";
+$password="";
+$dbname="gestion_cabinet_medical";
+$conn=mysqli_connect($servername,$username,$password,$dbname);
 
 
-    $result2=$conn->query($sql2="SELECT count(*)
-                            FROM rendezvous
-                            JOIN Traitement ON rendezvous.id_traitement = Traitement.id_traitement
-                            WHERE Traitement.id_medecin = $id_medecin;");
-    $row2=$result2->fetch_row();
-    $nbrandezvous=$row2[0];
-    ?>
+if (isset($_POST['logout'])) {
+    session_unset();
+    session_destroy();
+    header('Location: conexion.php');
+    exit;
+}
+
+
+if(isset($_POST['mes_patiant'])){
+  header('Location: mas_patiant.php');
+  exit;
+}
+if(isset($_POST['Mes_Rendez_vous'])){
+  header('Location: Mes_Rendez_vous.php');
+  exit;
+}
+if(isset($_POST['Résultats_d_Analyses'])){
+  header('Location: Résultats_d_Analyses.php');
+  exit;
+}
+
+
+$id_medecin = $_SESSION['id_utilisateur'];
+$nbpatiants = $nbrandezvous = $nbanalyse = 0;
+
+$result = $conn->query("SELECT count(*) as nb
+                        FROM Patient
+                        JOIN Traitement ON Patient.id_patient = Traitement.id_patient
+                        WHERE Traitement.id_medecin = $id_medecin;");
+$row = $result->fetch_row();
+$nbpatiants = $row[0];
+
+$result2 = $conn->query("SELECT count(*)
+                        FROM rendezvous
+                        JOIN Traitement ON rendezvous.id_traitement = Traitement.id_traitement
+                        WHERE Traitement.id_medecin = $id_medecin;");
+$row2 = $result2->fetch_row();
+$nbrandezvous = $row2[0];
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -252,7 +256,7 @@ body {
             </ul>
           </nav>
         </aside>
-    
+        
         <main class="main-content">
           <header class="header">
             <h1 id="title">Bienvenue Dr. Dupont</h1>

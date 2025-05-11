@@ -7,7 +7,7 @@
     <style>
         .tou{
             width:30%;
-            margin-left:280px;
+            margin-left:200px;
             margin-top:20px;
         }
         #table{
@@ -28,7 +28,7 @@
             text-align: center;
         }
         h1{
-            margin-left:680px;
+            margin-left:550px;
         }
     </style>
 </head>
@@ -40,7 +40,9 @@
         <th>ID</th><th>Nom</th><th>Prénom</th><th>date_naissance</th><th>sexe</th><th>adresse</th><th>telephone</th><th>email</th><th>dossier_medical</th><th>Supprimer</th><th>Modifier</th>
     </tr>
     </div>
+    
     <?php
+    
     $id_medecin=[];
     session_start();
     
