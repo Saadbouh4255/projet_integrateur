@@ -2,6 +2,10 @@
 session_start();
 $errors = [];
 
+// Configuration des logs
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__.'/logs/inscription_errors.log');
+
 // Fonction de nettoyage des entrées
 function test_input($data) {
     $data = trim($data);
@@ -11,131 +15,152 @@ function test_input($data) {
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    // Récupération des données
-    $nom = test_input($_POST['nom']);
-    $prenom = test_input($_POST['prenom']);
-    $email = test_input($_POST['email']);
-    $telephone = test_input($_POST['telephone']);
-    $date_naissance = $_POST['date_naissance'];
-    $sexe = $_POST['sexe'];
-    $adresse = test_input($_POST['adresse']);
-    $role = $_POST['role'];
-    
-    $password = $_POST['password'];
-    $password2 = $_POST['password2'];
+    // Récupération et nettoyage des données
+    $nom = test_input($_POST['nom'] ?? '');
+    $prenom = test_input($_POST['prenom'] ?? '');
+    $email = test_input($_POST['email'] ?? '');
+    $telephone = test_input($_POST['telephone'] ?? '');
+    $date_naissance = $_POST['date_naissance'] ?? '';
+    $sexe = $_POST['sexe'] ?? 'Homme';
+    $adresse = test_input($_POST['adresse'] ?? '');
+    $role = $_POST['role'] ?? '';
+    $password = $_POST['password'] ?? '';
+    $password2 = $_POST['password2'] ?? '';
 
-    // Validation
-    if (empty($nom) || empty($prenom)) $errors[] = "Nom et prénom obligatoires.";
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Email invalide.";
+    // Validation des données
+    if (empty($nom)) $errors[] = "Le nom est obligatoire.";
+    if (empty($prenom)) $errors[] = "Le prénom est obligatoire.";
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Format d'email invalide.";
     if (strlen($password) < 8) $errors[] = "Le mot de passe doit contenir au moins 8 caractères.";
     if ($password !== $password2) $errors[] = "Les mots de passe ne correspondent pas.";
     if (!in_array($role, ['patient', 'medecin', 'assistant'])) $errors[] = "Rôle invalide.";
-
-    try {
-        $conn = new mysqli("localhost","root","","gestion_cabinet_medical");
-        $conn->set_charset("utf8");
-        
-        // Vérification email existant
-        $check = $conn->prepare("SELECT id_utilisateur FROM Utilisateur WHERE email = ?");
-        $check->bind_param("s", $email);
-        $check->execute();
-        if ($check->get_result()->num_rows > 0) {
-            $errors[] = "Cet email est déjà utilisé.";
+    
+    // Validation date de naissance
+    if (!empty($date_naissance)) {
+        $date_obj = DateTime::createFromFormat('Y-m-d', $date_naissance);
+        if (!$date_obj || $date_obj->format('Y-m-d') !== $date_naissance) {
+            $errors[] = "Format de date invalide (AAAA-MM-JJ)";
         }
-        $check->close();
+    }
 
-        // Vérifications spécifiques selon le rôle
-        if ($role === 'medecin') {
-            $chk = $conn->prepare("SELECT COUNT(*) FROM Medecin WHERE email = ?");
-            $chk->bind_param("s", $email);
-            $chk->execute();
-            $chk->bind_result($cnt);
-            $chk->fetch();
-            $chk->close();
-            if ($cnt === 0) {
-                $errors[] = "Vous n'êtes pas référencé comme médecin. Contactez l'administrateur.";
-            }
-        }
-        
-        if ($role === 'assistant') {
-            $chk = $conn->prepare("SELECT COUNT(*) FROM Assistant WHERE email = ?");
-            $chk->bind_param("s", $email);
-            $chk->execute();
-            $chk->bind_result($cnt);
-            $chk->fetch();
-            $chk->close();
-            if ($cnt === 0) {
-                $errors[] = "Vous n'êtes pas référencé comme assistant. Contactez l'administrateur.";
-            }
-        }
+    // Validation téléphone Mauritanie (8 chiffres)
+    if (!empty($telephone) && !preg_match('/^[0-9]{8}$/', $telephone)) {
+        $errors[] = "Le numéro doit contenir 8 chiffres";
+    }
 
-        if (empty($errors)) {
-            // 1) Insertion Utilisateur
-            $st1 = $conn->prepare("
-                INSERT INTO utilisateur(nom, prenom, email, telephone, role, actif, date_creation)
-                VALUES(?, ?, ?, ?, ?, 1, NOW())
-            ");
-            $st1->bind_param("sssss", $nom, $prenom, $email, $telephone, $role);
-            $st1->execute();
-            $id_user = $st1->insert_id;
-            $st1->close();
-
-            // 2) Insertion dans la table spécifique selon le rôle
-            switch ($role) {
-                case 'patient':
-                    $st2 = $conn->prepare("
-                        INSERT INTO Patient(nom, prenom, date_naissance, sexe, telephone, adresse, email, dossier_medical)
-                        VALUES(?, ?, ?, ?, ?, ?, ?, '')
-                    ");
-                    $st2->bind_param("sssssss", $nom, $prenom, $date_naissance, $sexe, $telephone, $adresse, $email);
-                    $st2->execute();
-                    $_SESSION['id_patient'] = $st2->insert_id;
-                    $st2->close();
-                    break;
-                    
-                case 'assistant':
-                    $st2 = $conn->prepare("
-                        INSERT INTO Assistant(nom, prenom, telephone, email)
-                        VALUES(?, ?, ?, ?)
-                    ");
-                    $st2->bind_param("ssss", $nom, $prenom, $telephone, $email);
-                    $st2->execute();
-                    $_SESSION['id_assistant'] = $st2->insert_id;
-                    $st2->close();
-                    break;
-            }
-
-            // 3) Insertion Connexion
-            $hash = password_hash($password, PASSWORD_DEFAULT);
-            $st3 = $conn->prepare("
-                INSERT INTO Connexion(id_utilisateur, nom_utilisateur, mot_de_passe)
-                VALUES(?, ?, ?)
-            ");
-            $st3->bind_param("iss", $id_user, $email, $hash);
-            $st3->execute();
-            $st3->close();
-
-            // Authentification et redirection
-            $_SESSION['id_utilisateur'] = $id_user;
-            $_SESSION['role'] = $role;
-            $_SESSION['nom_complet'] = $nom.' '.$prenom;
-
-            $redirects = [
-                'patient' => 'patient.php',
-                'medecin' => 'dashboard_medecin.php',
-                'assistant' => 'accueil_assistant.php'
-            ];
+    if (empty($errors)) {
+        try {
+            $conn = new mysqli("localhost", "root", "", "gestion_cabinet_medical");
+            $conn->set_charset("utf8mb4");
             
-            header("Location: ".$redirects[$role]);
-            exit;
+            if ($conn->connect_error) {
+                throw new Exception("Connexion à la base de données échouée: " . $conn->connect_error);
+            }
+
+            // Vérification email existant
+            $check = $conn->prepare("SELECT id_utilisateur FROM utilisateur WHERE email = ?");
+            if (!$check) throw new Exception("Erreur de préparation: " . $conn->error);
+            $check->bind_param("s", $email);
+            $check->execute();
+            $check->store_result();
+            if ($check->num_rows > 0) {
+                $errors[] = "Cet email est déjà utilisé.";
+            }
+            $check->close();
+
+            if (empty($errors)) {
+                $conn->begin_transaction();
+                
+                try {
+                    // 1) Insertion Utilisateur
+                    $st1 = $conn->prepare("INSERT INTO utilisateur(nom, prenom, email, telephone, rôle) VALUES(?, ?, ?, ?, ?)");
+                    if (!$st1) throw new Exception("Erreur de préparation: " . $conn->error);
+                    
+                    // Adaptation du rôle selon la base de données
+                    $role_db = ($role === 'assistant') ? 'Secrétaire' : ucfirst($role);
+                    if (!$st1->bind_param("sssss", $nom, $prenom, $email, $telephone, $role_db)) {
+                        throw new Exception("Erreur de liaison des paramètres utilisateur: " . $st1->error);
+                    }
+
+                    if (!$st1->execute()) {
+                        throw new Exception("Erreur d'insertion utilisateur: " . $st1->error);
+                    }
+
+                    $id_user = $conn->insert_id;
+                    $st1->close();
+
+                    // 2) Insertion Patient si rôle patient
+                    if ($role === 'patient') {
+                        $st2 = $conn->prepare("INSERT INTO patient(nom, prenom, date_naissance, sexe, adresse, telephone, email, dossier_medical) 
+                                             VALUES(?, ?, ?, ?, ?, ?, ?, '')");
+                        if (!$st2) throw new Exception("Erreur de préparation patient: " . $conn->error);
+                        
+                        if (!$st2->bind_param("sssssss", $nom, $prenom, $date_naissance, $sexe, $adresse, $telephone, $email)) {
+                            throw new Exception("Erreur de liaison des paramètres patient: " . $st2->error);
+                        }
+
+                        if (!$st2->execute()) {
+                            throw new Exception("Erreur d'insertion patient: " . $st2->error);
+                        }
+
+                        $id_patient = $conn->insert_id;
+                        $st2->close();
+                        
+                        // Stockage de l'ID patient dans la session
+                        $_SESSION['id_patient'] = $id_patient;
+                    }
+
+                    // 3) Insertion Connexion - Solution pour l'auto-incrément manquant
+                    // D'abord trouver le prochain ID disponible
+                    $res = $conn->query("SELECT MAX(id_connexion) as max_id FROM connexion");
+                    $row = $res->fetch_assoc();
+                    $next_id = $row['max_id'] + 1;
+                    
+                    $hash = password_hash($password, PASSWORD_DEFAULT);
+                    $st3 = $conn->prepare("INSERT INTO connexion(id_connexion, id_utilisateur, login, mot_de_passe) VALUES(?, ?, ?, ?)");
+                    if (!$st3) throw new Exception("Erreur de préparation connexion: " . $conn->error);
+                    
+                    if (!$st3->bind_param("iiss", $next_id, $id_user, $email, $hash)) {
+                        throw new Exception("Erreur de liaison des paramètres connexion: " . $st3->error);
+                    }
+
+                    if (!$st3->execute()) {
+                        throw new Exception("Erreur d'insertion connexion: " . $st3->error);
+                    }
+
+                    $st3->close();
+                    $conn->commit();
+
+                    // Authentification
+                    $_SESSION['id_utilisateur'] = $id_user;
+                    $_SESSION['role'] = $role; // Garde 'assistant' dans la session même si c'est 'Secrétaire' en BD
+                    $_SESSION['nom_complet'] = "$nom $prenom";
+
+                    // Redirection
+                    $redirects = [
+                        'patient' => 'patient.php',
+                        'medecin' => 'dashword_medecin.php',
+                        'assistant' => 'accueil_assistant.php'
+                    ];
+                    
+                    header("Location: ".$redirects[$role]);
+                    exit;
+
+                } catch (Exception $e) {
+                    $conn->rollback();
+                    $errors[] = "Erreur lors de l'inscription: " . $e->getMessage();
+                    error_log("Erreur transaction: " . $e->getMessage());
+                }
+            }
+            $conn->close();
+        } catch (Exception $e) {
+            $errors[] = "Erreur de connexion à la base de données: " . $e->getMessage();
+            error_log("Erreur DB: " . $e->getMessage());
         }
-        $conn->close();
-    } catch (Exception $e) {
-        $errors[] = "Erreur technique. Veuillez réessayer plus tard.";
-        error_log("Erreur inscription: ".$e->getMessage());
     }
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -150,6 +175,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       --background: #e3f2fd;
       --text: #0d47a1;
       --error: #d32f2f;
+      --success: #388e3c;
       --white: #ffffff;
       --gray: #f5f5f5;
     }
@@ -291,57 +317,57 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       </ul>
     <?php endif; ?>
     
-    <form method="post">
+    <form method="post" onsubmit="return validateForm()">
       <div class="form-row">
         <div class="form-group">
           <label for="nom">Nom :</label>
-          <input type="text" id="nom" name="nom" required>
+          <input type="text" id="nom" name="nom" required value="<?= htmlspecialchars($_POST['nom'] ?? '') ?>">
         </div>
         
         <div class="form-group">
           <label for="prenom">Prénom :</label>
-          <input type="text" id="prenom" name="prenom" required>
+          <input type="text" id="prenom" name="prenom" required value="<?= htmlspecialchars($_POST['prenom'] ?? '') ?>">
         </div>
       </div>
       
       <div class="form-row">
         <div class="form-group">
           <label for="email">Email :</label>
-          <input type="email" id="email" name="email" required>
+          <input type="email" id="email" name="email" required value="<?= htmlspecialchars($_POST['email'] ?? '') ?>">
         </div>
         
         <div class="form-group">
           <label for="telephone">Téléphone :</label>
-          <input type="tel" id="telephone" name="telephone">
+          <input type="tel" id="telephone" name="telephone" pattern="[0-9]{8}" title="8 chiffres requis (ex: 12345678)" value="<?= htmlspecialchars($_POST['telephone'] ?? '') ?>" required>
         </div>
       </div>
       
       <div class="form-row">
         <div class="form-group">
           <label for="date_naissance">Date de naissance :</label>
-          <input type="date" id="date_naissance" name="date_naissance">
+          <input type="date" id="date_naissance" name="date_naissance" required value="<?= htmlspecialchars($_POST['date_naissance'] ?? '') ?>">
         </div>
         
         <div class="form-group">
           <label for="sexe">Sexe :</label>
-          <select id="sexe" name="sexe">
-            <option value="Homme">Homme</option>
-            <option value="Femme">Femme</option>
+          <select id="sexe" name="sexe" required>
+            <option value="Homme" <?= ($_POST['sexe'] ?? 'Homme') === 'Homme' ? 'selected' : '' ?>>Homme</option>
+            <option value="Femme" <?= ($_POST['sexe'] ?? 'Homme') === 'Femme' ? 'selected' : '' ?>>Femme</option>
           </select>
         </div>
       </div>
       
       <div class="form-group">
         <label for="adresse">Adresse :</label>
-        <textarea id="adresse" name="adresse" rows="3"></textarea>
+        <textarea id="adresse" name="adresse" rows="3" required><?= htmlspecialchars($_POST['adresse'] ?? '') ?></textarea>
       </div>
       
       <div class="form-group">
         <label for="role">Rôle :</label>
         <select id="role" name="role" required>
-          <option value="patient" selected>Patient</option>
-          <option value="medecin">Médecin</option>
-          <option value="assistant">Assistant</option>
+          <option value="patient" <?= ($_POST['role'] ?? 'patient') === 'patient' ? 'selected' : '' ?>>Patient</option>
+          <option value="medecin" <?= ($_POST['role'] ?? '') === 'medecin' ? 'selected' : '' ?>>Médecin</option>
+          <option value="assistant" <?= ($_POST['role'] ?? '') === 'assistant' ? 'selected' : '' ?>>Assistant</option>
         </select>
       </div>
       
@@ -364,5 +390,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       <a href="connection.php">Déjà un compte ? Se connecter</a>
     </div>
   </div>
+
+  <script>
+    function validateForm() {
+      const password = document.getElementById('password').value;
+      const password2 = document.getElementById('password2').value;
+      
+      if (password !== password2) {
+        alert("Les mots de passe ne correspondent pas");
+        return false;
+      }
+      
+      return true;
+    }
+  </script>
 </body>
 </html>

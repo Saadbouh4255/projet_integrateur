@@ -15,10 +15,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         // Requête préparée pour éviter les injections SQL
         $stmt = $conn->prepare("
-            SELECT u.id_utilisateur, c.mot_de_passe, u.role, u.nom, u.prenom 
-            FROM Utilisateur u
-            JOIN Connexion c USING(id_utilisateur)
-            WHERE u.email = ? AND u.actif = 1
+            SELECT u.id_utilisateur, c.mot_de_passe, u.rôle, u.nom, u.prenom 
+            FROM utilisateur u
+            JOIN connexion c ON u.id_utilisateur = c.id_utilisateur
+            WHERE u.email = ?
         ");
         $stmt->bind_param("s", $email);
         $stmt->execute();
@@ -26,7 +26,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         // Vérification de l'utilisateur
         if (!$user) {
-            $erreur = "Email non trouvé ou compte désactivé.";
+            $erreur = "Email non trouvé.";
         }
         elseif (!password_verify($password, $user['mot_de_passe'])) {
             $erreur = "Mot de passe incorrect.";
@@ -34,45 +34,48 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         else {
             // Création de la session
             $_SESSION['id_utilisateur'] = $user['id_utilisateur'];
-            $_SESSION['role'] = $user['role'];
+            $_SESSION['role'] = strtolower($user['rôle']); // Conversion en minuscules pour la cohérence
             $_SESSION['nom_complet'] = $user['nom'].' '.$user['prenom'];
 
             // Récupération de l'ID spécifique selon le rôle
-            switch ($user['role']) {
+            switch (strtolower($user['rôle'])) {
                 case 'patient':
-                    $r = $conn->prepare("SELECT id_patient FROM Patient WHERE email = ?");
+                    $r = $conn->prepare("SELECT id_patient FROM patient WHERE email = ?");
                     $r->bind_param("s", $email);
                     $r->execute();
                     $_SESSION['id_patient'] = $r->get_result()->fetch_assoc()['id_patient'];
                     $r->close();
                     break;
                     
-                case 'assistant':
-                    $r = $conn->prepare("SELECT id_assistant FROM Assistant WHERE email = ?");
-                    $r->bind_param("s", $email);
-                    $r->execute();
-                    $_SESSION['id_assistant'] = $r->get_result()->fetch_assoc()['id_assistant'];
-                    $r->close();
+                case 'assistant': // Correspond au rôle 'assistant' dans votre interface
+                    // Pas de table séparée pour les assistants, on utilise juste l'id_utilisateur
+                    $_SESSION['id_assistant'] = $user['id_utilisateur'];
                     break;
                     
-                case 'medecin':
-                    $r = $conn->prepare("SELECT id_medecin FROM Medecin WHERE email = ?");
+                case 'médecin':
+                    $r = $conn->prepare("SELECT id_medecin FROM medecin WHERE email = ?");
                     $r->bind_param("s", $email);
                     $r->execute();
                     $_SESSION['id_medecin'] = $r->get_result()->fetch_assoc()['id_medecin'];
                     $r->close();
                     break;
+                    
+                case 'admin':
+                    // Pas de table séparée pour les admins
+                    break;
             }
 
             // Redirection selon le rôle
+            $role_redirect = strtolower($user['rôle']);
             $redirects = [
                 'patient' => 'patient.php',
-                'medecin' => 'dashword_medecin.php',
+                'Medecin' => 'dashword_medecin.php',
                 'admin' => 'admin.php',
                 'assistant' => 'accueil_assistant.php'
             ];
+            $_SESSION['id_medecin'];
+            header("Location: ".$redirects[$user['rôle']]);
             
-            header("Location: ".$redirects[$user['role']]);
             exit;
         }
         $stmt->close();

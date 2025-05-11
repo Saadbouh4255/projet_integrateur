@@ -41,6 +41,7 @@
     </tr>
     </div>
     <?php
+    if(isset($_POST['mes_patiant'])){
     session_start();
     $servername="localhost";
     $username="root";
@@ -48,7 +49,8 @@
     $dbname="gestion_cabinet_medical";
     $conn=mysqli_connect($servername,$username,$password,$dbname);
     
-    $id_medecin=$_session['id_medecin'];
+    $id_medecin=$_SESSION['id_medecin'];
+    echo "$id_medecin";
     $result = $conn->query("SELECT DISTINCT Patient.*
                             FROM Patient
                             JOIN Traitement ON Patient.id_patient = Traitement.id_patient
@@ -85,6 +87,8 @@
             </td>
         </tr>";
     }
+    session_close();
+}
     ?>
 
 </body>
