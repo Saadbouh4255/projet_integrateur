@@ -41,16 +41,18 @@
     </tr>
     </div>
     <?php
-    if(isset($_POST['mes_patiant'])){
+    $id_medecin=[];
     session_start();
+    
     $servername="localhost";
     $username="root";
     $password="";
     $dbname="gestion_cabinet_medical";
     $conn=mysqli_connect($servername,$username,$password,$dbname);
     
-    $id_medecin=$_SESSION['id_medecin'];
-    echo "$id_medecin";
+    $id_medecin=$_SESSION['id_utilisateur'];
+    
+    
     $result = $conn->query("SELECT DISTINCT Patient.*
                             FROM Patient
                             JOIN Traitement ON Patient.id_patient = Traitement.id_patient
@@ -63,11 +65,11 @@
         <tr>
             <td>{$row['id_patient']}</td>
             <td>{$row['nom']}</td>
-            <td>{$row['prénom']}</td>
+            <td>{$row['prenom']}</td>
             <td>{$row['date_naissance']}</td>
             <td>{$row['sexe']}</td>
             <td>{$row['adresse']}</td>
-            <td>{$row['téléphone']}</td>
+            <td>{$row['telephone']}</td>
             <td>{$row['email']}</td>
             <td>{$row['dossier_medical']}</td>
             
@@ -87,8 +89,8 @@
             </td>
         </tr>";
     }
-    session_close();
-}
+    
+
     ?>
 
 </body>

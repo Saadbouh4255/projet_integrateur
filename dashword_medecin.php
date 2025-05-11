@@ -1,16 +1,23 @@
 <?php
+$servername="localhost";
+    $username="root";
+    $password="";
+    $dbname="gestion_cabinet_medical";
+    $conn=mysqli_connect($servername,$username,$password,$dbname);
 session_start();
 if(isset($_POST['logout'])){
-      
+      session_unset();
+      session_destroy();
       header('location: conexion.php');
       exit;
-      session_destroy();
+      
+
       
       
       
     }
     if(isset($_POST['mes_patiant'])){
-      $id=$_SESSION['id_medecin'];
+      
       header('location: mas_patiant.php');
       exit;
     }
@@ -22,10 +29,24 @@ if(isset($_POST['logout'])){
       header('location: Résultats_d_Analyses.php');
       exit;
     }
-    $nbpatiants=$nbrandezvous=$nbanalyse="";
-    #$id_patiant=$_SESSION['id_patiant'];
-    #$nbpatiants=query($sql="SELECT count(*) FROM patiant WHERE id_patant=$id_patiant")
+    $id_medecin="";
+    $nbpatiants=$nbrandezvous=$nbanalyse=0;
+    $id_medecin=$_SESSION['id_utilisateur'];
+    
+    $result=$conn->query($sql="SELECT count(*) as nb
+                            FROM Patient
+                            JOIN Traitement ON Patient.id_patient = Traitement.id_patient
+                            WHERE Traitement.id_medecin =$id_medecin ;");
+    $row=$result->fetch_row();
+    $nbpatiants=$row[0];
 
+
+    $result2=$conn->query($sql2="SELECT count(*)
+                            FROM rendezvous
+                            JOIN Traitement ON rendezvous.id_traitement = Traitement.id_traitement
+                            WHERE Traitement.id_medecin = $id_medecin;");
+    $row2=$result2->fetch_row();
+    $nbrandezvous=$row2[0];
     ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -236,7 +257,7 @@ body {
           <header class="header">
             <h1 id="title">Bienvenue Dr. Dupont</h1>
             <form action="" method="POST">
-            <input type="submit" name="logout" id="mes_patiant" value="Se déconnecter">
+            <input type="submit" name="logout" id="logout" value="Se déconnecter">
             </form>
           </header>
     
@@ -244,13 +265,13 @@ body {
             <div class="card">
                 <i class="fas fa-calendar-alt red-icon"></i>
               <h3>Mes Patients</h3>
-              <p>Nombre de patients: <strong><?= $nbpatiants ?></strong></p>
+              <p>Nombre de patients: <span><?= $nbpatiants ?></span></p>
             </div>
     
             <div class="card">
                 <i class="fas fa-calendar-check green-icon"></i>
               <h3>Mes Rendez-vous</h3>
-              <p>Rendez-vous à venir: <strong><?= $nbrandezvous ?></strong></p>
+              <p>Rendez-vous à venir:<span> <?= $nbrandezvous ?></span></p>
             </div>
           </section>
     
